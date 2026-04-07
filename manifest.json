@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Dinosaur Eats",
+  "version": "0.1.0",
+  "description": "An April Fools extension where a tiny dinosaur eats webpage text line by line.",
+  "permissions": [
+    "storage"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content.js"
+      ],
+      "css": [
+        "src/dino.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "action": {
+    "default_title": "Dinosaur Eats",
+    "default_icon": "icons/dino_extension_icon_128.png"
+  },
+  "icons": {
+    "128": "icons/dino_extension_icon_128.png"
+  }
+}
