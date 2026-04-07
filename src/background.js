@@ -14,6 +14,22 @@ async function setEnabledState(enabled) {
   });
 }
 
+async function injectOnTab(tabId) {
+  if (!tabId) return;
+  try {
+    await chrome.scripting.insertCSS({
+      target: { tabId },
+      files: ["src/dino.css"]
+    });
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["src/content.js"]
+    });
+  } catch {
+    // Ignore unsupported pages like chrome:// and extension store pages.
+  }
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
   await setEnabledState(await getEnabledState());
 });
@@ -22,7 +38,11 @@ chrome.runtime.onStartup.addListener(async () => {
   await setEnabledState(await getEnabledState());
 });
 
-chrome.action.onClicked.addListener(async () => {
+chrome.action.onClicked.addListener(async (tab) => {
   const enabled = await getEnabledState();
-  await setEnabledState(!enabled);
+  const nextEnabled = !enabled;
+  await setEnabledState(nextEnabled);
+  if (nextEnabled && tab?.id) {
+    await injectOnTab(tab.id);
+  }
 });

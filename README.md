@@ -11,7 +11,7 @@ A tiny Manifest V3 Chrome extension for the DEV April Fools challenge. It inject
 - Randomizes the line order.
 - Animates either a single dino or a herd stampede, with looping chomp audio while dinos are on screen.
 - Keeps rampaging on a timer and can restore previously eaten content to keep the effect running.
-- Supports extension action toggle (click toolbar icon to turn ON/OFF).
+- Uses an explicit toolbar click to activate on the current tab (via `activeTab`), and click again to turn OFF.
 
 ## Assets
 
@@ -26,6 +26,7 @@ Add these under **`assets/`** before loading the extension:
 2. Enable **Developer mode**.
 3. Click **Load unpacked**.
 4. Choose the **project root** (the directory that contains `manifest.json`).
+5. Open a page and click the Dinosaur Eats toolbar icon to activate it for that tab.
 
 ## Publish to GitHub
 
@@ -38,11 +39,18 @@ Add these under **`assets/`** before loading the extension:
    - `git push -u origin main`
 3. Reload `chrome://extensions` after pulling changes on other machines.
 
+## Chrome Web Store prep
+
+- Use icon files in `icons/` (`16`, `32`, `48`, `128`) and keep manifest entries in sync.
+- Review and customize `PRIVACY.md` before publishing.
+- Use `STORE_LISTING.md` as your draft listing copy.
+
 ## Current constraints
 
 - It still works at the element level, not true text-node-level parsing, so heavily nested/complex rich text can be skipped.
 - It favors readable visible content and skips hidden or tiny elements.
 - Browser autoplay rules still apply; the extension primes audio on user input and retries when tabs regain focus/visibility.
+- The extension now uses `activeTab`, so each tab requires an explicit toolbar click to activate.
 
 ## Tuning knobs
 
