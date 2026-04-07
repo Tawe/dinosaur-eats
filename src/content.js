@@ -6,6 +6,7 @@ const MAX_LINES = 45;
 const DINO_FRAME_COUNT = 8;
 const DINO_BITE_MS = 70;
 const DINO_SPRITE_PATH = chrome.runtime.getURL("assets/dino-chomp.png");
+const TEAPOT_DINO_SPRITE_PATH = chrome.runtime.getURL("assets/teapot_dino_sprite_sheet_grey_pot_8x2_32.png");
 const CHOMP_SOUND_PATH = chrome.runtime.getURL("assets/chomp.mp3");
 const HERD_CHANCE = 1 / 5;
 const HERD_SIZE = 15;
@@ -41,6 +42,8 @@ const TARGET_TAGS = [
 const TARGET_SELECTOR = TARGET_TAGS.join(", ");
 const DEBUG = false;
 let stopRequested = false;
+let activeSpritePath = DINO_SPRITE_PATH;
+let recentKeySequence = "";
 
 function dinoDebug(...args) {
   if (!DEBUG && !window.__DINO_EATS_DEBUG__) return;
@@ -246,7 +249,7 @@ function herdSlotOffset(slot) {
 
 function applyDinoThemeVars() {
   const root = document.documentElement;
-  root.style.setProperty("--dino-sprite-url", `url("${DINO_SPRITE_PATH}")`);
+  root.style.setProperty("--dino-sprite-url", `url("${activeSpritePath}")`);
   root.style.setProperty("--dino-frame-count", String(DINO_FRAME_COUNT));
 }
 
@@ -639,6 +642,35 @@ function listenForEnableStateChanges() {
   });
 }
 
+function installSpriteEasterEggListener() {
+  document.addEventListener(
+    "keydown",
+    async (event) => {
+      if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key.length !== 1) return;
+      if (!/[0-9]/.test(event.key)) return;
+      if (!(await isDinoEatsEnabled())) return;
+
+      recentKeySequence = `${recentKeySequence}${event.key}`.slice(-3);
+      if (recentKeySequence === "418") {
+        activeSpritePath = TEAPOT_DINO_SPRITE_PATH;
+        recentKeySequence = "";
+        applyDinoThemeVars();
+        dinoDebug("Sprite switched to teapot dino");
+        return;
+      }
+      if (recentKeySequence === "814") {
+        activeSpritePath = DINO_SPRITE_PATH;
+        recentKeySequence = "";
+        applyDinoThemeVars();
+        dinoDebug("Sprite switched to default dino");
+      }
+    },
+    { passive: true }
+  );
+}
+
 installChompKickOnUserInput();
 attachFirstInteractionToStartRampage();
 listenForEnableStateChanges();
+installSpriteEasterEggListener();
