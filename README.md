@@ -56,7 +56,7 @@ Add these under **`assets/`** before loading the extension:
 
 Edit these constants in `src/content.js`:
 
-- `HERD_CHANCE`, `HERD_SIZE`, `HERD_PASSES`
+- `HERD_CHANCE`, `HERD_PITY_AFTER` (guaranteed herd after N single rampages in a row; `0` = off), `HERD_SIZE`, `HERD_PASSES`
 - `RAMPAGE_RETRY_MIN_MS`, `RAMPAGE_RETRY_MAX_MS`
 - `MAX_LINES`, `DINO_BITE_MS`
 - `DEBUG` (or set `window.__DINO_EATS_DEBUG__ = true` in DevTools)

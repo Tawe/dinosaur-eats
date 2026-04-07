@@ -30,13 +30,12 @@ async function injectOnTab(tabId) {
   }
 }
 
-chrome.runtime.onInstalled.addListener(async () => {
+async function syncActionFromStorage() {
   await setEnabledState(await getEnabledState());
-});
+}
 
-chrome.runtime.onStartup.addListener(async () => {
-  await setEnabledState(await getEnabledState());
-});
+chrome.runtime.onInstalled.addListener(syncActionFromStorage);
+chrome.runtime.onStartup.addListener(syncActionFromStorage);
 
 chrome.action.onClicked.addListener(async (tab) => {
   const enabled = await getEnabledState();

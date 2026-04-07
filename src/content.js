@@ -1,7 +1,6 @@
 const DINO_ACTIVE_ATTR = "data-dino-eats-active";
 const PROCESSED_ATTR = "data-dino-eats-processed";
 const ENABLED_STORAGE_KEY = "dinoEatsEnabled";
-const MIN_TEXT_LENGTH = 28;
 const MAX_LINES = 45;
 const DINO_FRAME_COUNT = 8;
 const DINO_BITE_MS = 70;
@@ -9,6 +8,8 @@ const DINO_SPRITE_PATH = chrome.runtime.getURL("assets/dino-chomp.png");
 const TEAPOT_DINO_SPRITE_PATH = chrome.runtime.getURL("assets/teapot_dino_sprite_sheet_grey_pot_8x2_32.png");
 const CHOMP_SOUND_PATH = chrome.runtime.getURL("assets/chomp.mp3");
 const HERD_CHANCE = 1 / 5;
+/** After this many single-dino rampages in a row, the next rampage is a herd. Set 0 to disable. */
+const HERD_PITY_AFTER = 6;
 const HERD_SIZE = 15;
 const HERD_PASSES = 2;
 const RAMPAGE_RETRY_MIN_MS = 250;
@@ -44,6 +45,7 @@ const DEBUG = false;
 let stopRequested = false;
 let activeSpritePath = DINO_SPRITE_PATH;
 let recentKeySequence = "";
+let herdSinglesStreak = 0;
 
 function dinoDebug(...args) {
   if (!DEBUG && !window.__DINO_EATS_DEBUG__) return;
@@ -216,10 +218,14 @@ function createStampedeBanner() {
   root.className = "dino-eats-stampede-root";
   const inner = document.createElement("div");
   inner.className = "dino-eats-stampede-banner";
-  inner.textContent = "Oh no! Its a stampede!";
+  inner.textContent = "Oh no! It's a stampede!";
   root.appendChild(inner);
   document.body.appendChild(root);
   return root;
+}
+
+function lineHasAliveBites(line) {
+  return line.biteNodes.some((n) => document.documentElement.contains(n));
 }
 
 function willHaveAnotherChompAfter(targets, currentLine, pass, passCount) {
@@ -228,12 +234,12 @@ function willHaveAnotherChompAfter(targets, currentLine, pass, passCount) {
   for (let j = idx + 1; j < targets.length; j += 1) {
     const t = targets[j];
     if (!document.body.contains(t.element)) continue;
-    if (t.biteNodes.some((n) => document.documentElement.contains(n))) return true;
+    if (lineHasAliveBites(t)) return true;
   }
   if (pass < passCount - 1) {
     for (const t of targets) {
       if (!document.body.contains(t.element)) continue;
-      if (t.biteNodes.some((n) => document.documentElement.contains(n))) return true;
+      if (lineHasAliveBites(t)) return true;
     }
   }
   return false;
@@ -263,14 +269,10 @@ function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-/**
- * Chomp uses HTMLAudioElement only (no AudioContext). Chrome often blocks Web Audio in MV3
- * content scripts even when the user interacts with the page; <audio> follows normal media autoplay.
- */
+// Chomp: HTMLAudioElement only (no AudioContext) — better autoplay behavior in MV3 content scripts.
 const chompActiveAudios = new Set();
 let chompMediaPrimed = false;
 
-/** One inaudible play() during a real gesture unlocks this tab for chomp audio from timers. */
 function primeChompMediaOnUserGesture() {
   if (chompMediaPrimed) return;
   chompMediaPrimed = true;
@@ -297,9 +299,7 @@ function releaseAudioElement(audio) {
 
 function forceStopActiveEffects() {
   for (const el of chompActiveAudios) {
-    if (el instanceof HTMLAudioElement) {
-      releaseAudioElement(el);
-    }
+    releaseAudioElement(el);
   }
   chompActiveAudios.clear();
 
@@ -327,13 +327,7 @@ function kickChompAudiosFromUserInput() {
   }
 }
 
-/**
- * Retries `play()` on paused chomp tracks. Browsers often:
- * - allow the first play after you click/type, then
- * - block `play()` started from timers (later rampage lines), and
- * - pause audio when the tab is in the background.
- * So we kick again on input, tab focus, and visibility.
- */
+// Kick paused chomp audio on user input / tab focus / visibility (autoplay + background-tab pauses).
 function installChompKickOnUserInput() {
   const onInput = () => {
     primeChompMediaOnUserGesture();
@@ -516,26 +510,40 @@ async function chompLine(dinos, line, herdOffsets = null) {
   }
 }
 
-function scheduleNextRampage() {
-  if (!document.body) return;
-  const span = RAMPAGE_RETRY_MAX_MS - RAMPAGE_RETRY_MIN_MS;
-  const ms = RAMPAGE_RETRY_MIN_MS + Math.random() * span;
+function scheduleRunDinoRampage(ms) {
   window.setTimeout(() => {
     void runDinoRampage();
   }, ms);
 }
 
-function scheduleDisabledRetry() {
-  window.setTimeout(() => {
-    void runDinoRampage();
-  }, 2000);
+function scheduleNextRampage() {
+  if (!document.body) return;
+  const span = RAMPAGE_RETRY_MAX_MS - RAMPAGE_RETRY_MIN_MS;
+  scheduleRunDinoRampage(RAMPAGE_RETRY_MIN_MS + Math.random() * span);
 }
 
-/** If a timer fires while a rampage is still running, retry soon instead of dropping the chain. */
+function scheduleDisabledRetry() {
+  scheduleRunDinoRampage(2000);
+}
+
 function scheduleRampageRetryWhenBusy() {
-  window.setTimeout(() => {
-    void runDinoRampage();
-  }, 900 + Math.random() * 1100);
+  scheduleRunDinoRampage(900 + Math.random() * 1100);
+}
+
+function rollHerdMode() {
+  let herd = Math.random() < HERD_CHANCE;
+  if (HERD_PITY_AFTER <= 0) return herd;
+  if (herd) {
+    herdSinglesStreak = 0;
+    return true;
+  }
+  herdSinglesStreak += 1;
+  if (herdSinglesStreak >= HERD_PITY_AFTER) {
+    herdSinglesStreak = 0;
+    dinoDebug("herd pity triggered after", HERD_PITY_AFTER, "singles");
+    return true;
+  }
+  return false;
 }
 
 async function runDinoRampage() {
@@ -563,7 +571,7 @@ async function runDinoRampage() {
   document.documentElement.setAttribute(DINO_ACTIVE_ATTR, "");
   applyDinoThemeVars();
 
-  const herdMode = Math.random() < HERD_CHANCE;
+  const herdMode = rollHerdMode();
   const dinos = herdMode
     ? Array.from({ length: HERD_SIZE }, () => createDinoElement())
     : [createDinoElement()];
@@ -611,7 +619,7 @@ async function runDinoRampage() {
 }
 
 function scheduleRampage() {
-  window.setTimeout(runDinoRampage, 600);
+  scheduleRunDinoRampage(600);
 }
 
 function attachFirstInteractionToStartRampage() {
